@@ -1,0 +1,8 @@
+# Large or derived files: archive them on Zenodo instead
+features/
+runs/
+analysis/
+*.npz
+*.npy
+__pycache__/
+*.pyc

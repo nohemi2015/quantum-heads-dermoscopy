@@ -1,0 +1,50 @@
+cff-version: 1.2.0
+message: "If you use this code or the data partition, please cite it as below."
+title: "Quantum classification heads for dermoscopic skin-lesion diagnosis: code, partition and results"
+type: software
+license: MIT
+authors:
+  - family-names: "Sánchez-Medel"
+    given-names: "Nohemí"
+    affiliation: "Instituto Nacional de Astrofísica, Óptica y Electrónica (INAOE)"
+  - family-names: "Altamirano-Robles"
+    given-names: "Leopoldo"
+    affiliation: "Instituto Nacional de Astrofísica, Óptica y Electrónica (INAOE)"
+    email: "robles@inaoep.mx"
+  - family-names: "Díaz-Hernández"
+    given-names: "Raquel"
+    affiliation: "Instituto Nacional de Astrofísica, Óptica y Electrónica (INAOE)"
+  - family-names: "Ramírez-Gutiérrez"
+    given-names: "Kelsey Alejandra"
+    affiliation: "Instituto Nacional de Astrofísica, Óptica y Electrónica (INAOE)"
+  - family-names: "Zapotecas-Martínez"
+    given-names: "Saúl"
+    affiliation: "Instituto Nacional de Astrofísica, Óptica y Electrónica (INAOE)"
+  - family-names: "Velázquez-Arreola"
+    given-names: "José de Jesús"
+    affiliation: "Instituto Nacional de Astrofísica, Óptica y Electrónica (INAOE)"
+keywords:
+  - quantum machine learning
+  - variational quantum classifier
+  - quantum kernel
+  - dermoscopy
+  - benchmarking
+preferred-citation:
+  type: article
+  title: "Do Quantum Classification Heads Help Dermoscopic Skin-Lesion Diagnosis? A Parameter-Matched, Lesion-Level and Externally Validated Benchmark"
+  authors:
+    - family-names: "Sánchez-Medel"
+      given-names: "Nohemí"
+    - family-names: "Altamirano-Robles"
+      given-names: "Leopoldo"
+    - family-names: "Díaz-Hernández"
+      given-names: "Raquel"
+    - family-names: "Ramírez-Gutiérrez"
+      given-names: "Kelsey Alejandra"
+    - family-names: "Zapotecas-Martínez"
+      given-names: "Saúl"
+    - family-names: "Velázquez-Arreola"
+      given-names: "José de Jesús"
+  journal: "Quantum Machine Intelligence"
+  year: 2026
+  notes: "Submitted"
