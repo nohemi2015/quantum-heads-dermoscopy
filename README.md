@@ -8,9 +8,9 @@ Code, data partition and run-level results for the paper
 
 **Version history.** v1.0: code, partition and results of the main, robustness and encoding analyses. v1.1: sensitivity analyses requested in internal review (new script 05, training options `--mlp-lado`, `--mlp-angulo`, `--peso-lesion`, `--qk-escalas`, `--rbf-gammas`, and their results). The Zenodo record of v1.1 also archives the per-image predictions of the main design.
 
-The study compares quantum classification heads with classical heads of equal capacity on identical, frozen image features:
+The study compares quantum classification heads with classical counterparts on identical, frozen image features:
 
-- a **variational quantum classifier (VQC)** against a **parameter-matched multilayer perceptron (MLP)**;
+- a **variational quantum classifier (VQC)** against a **multilayer perceptron (MLP) with approximately the same number of parameters**;
 - an **SVM with an IQP quantum fidelity kernel** against an **SVM with a Gaussian (RBF) kernel**;
 - a logistic regression on the same inputs, and a logistic regression on all backbone features as a reference.
 
