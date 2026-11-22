@@ -36,6 +36,9 @@ import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
+plt.rcParams["font.family"] = "sans-serif"
+plt.rcParams["font.sans-serif"] = ["Arial", "Helvetica", "Liberation Sans", "DejaVu Sans"]
+plt.rcParams["pdf.fonttype"] = 42  # fuentes TrueType incrustadas
 import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
 
@@ -245,7 +248,7 @@ def fig_auc(t, conjunto, salida):
                 ax.set_ylabel(L["auc"], fontsize=8, color=TINTA2)
     h, l = axes[0, 0].get_legend_handles_labels()
     fig.legend(h, l, loc="lower center", ncol=3, fontsize=8, frameon=False, bbox_to_anchor=(0.5, -0.01))
-    fig.suptitle(L["t1"].format(c=L["conj"][conjunto], n=int(t["n_semillas"].max())), fontsize=10, color=TINTA, y=1.0)
+    # Sin titulo dentro de la figura: la revista lo pide en el pie de figura
     fig.tight_layout(rect=(0, 0.08, 1, 0.98))
     for ext in ("png", "pdf"):
         fig.savefig(Path(salida) / f"fig1_auc_vs_k_{conjunto}.{ext}", dpi=300, bbox_inches="tight")
@@ -281,7 +284,7 @@ def fig_delta(c, conjunto, salida):
                 ax.set_ylabel(L["dy"], fontsize=8, color=TINTA2)
     h, l = axes[0, 0].get_legend_handles_labels()
     fig.legend(h, l, loc="lower center", ncol=3, fontsize=8, frameon=False, bbox_to_anchor=(0.5, -0.01))
-    fig.suptitle(L["t2"].format(c=L["conj"][conjunto]), fontsize=10, color=TINTA, y=1.0)
+    # Sin titulo dentro de la figura: la revista lo pide en el pie de figura
     fig.tight_layout(rect=(0, 0.06, 1, 0.98))
     for ext in ("png", "pdf"):
         fig.savefig(Path(salida) / f"fig2_delta_{conjunto}.{ext}", dpi=300, bbox_inches="tight")

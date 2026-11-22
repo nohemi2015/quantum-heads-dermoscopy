@@ -273,12 +273,21 @@ def contar(m):
     return sum(p.numel() for p in m.parameters() if p.requires_grad)
 
 
-def entrenar_torch(modelo, Xtr, ytr, Xva, yva, a, dispositivo):
-    """Adam con lote completo; se guarda el estado con menor perdida de validacion."""
+def entrenar_torch(modelo, Xtr, ytr, Xva, yva, a, dispositivo, wtr=None, wva=None):
+    """Adam con lote completo; se guarda el estado con menor perdida de validacion.
+    wtr / wva: pesos por imagen (p. ej. 1 / imagenes de su lesion); None = pesos iguales."""
     modelo = modelo.to(dispositivo)
     Xtr, ytr, Xva, yva = (torch.as_tensor(v, dtype=torch.float32, device=dispositivo) for v in (Xtr, ytr, Xva, yva))
     opt = torch.optim.Adam(modelo.parameters(), lr=a.lr)
-    perdida = torch.nn.BCEWithLogitsLoss()
+    if wtr is None:
+        _bce = torch.nn.BCEWithLogitsLoss()
+        perdida = lambda s, y: _bce(s, y)
+    else:
+        wt = torch.as_tensor(wtr, dtype=torch.float32, device=dispositivo)
+        wv = torch.as_tensor(wva, dtype=torch.float32, device=dispositivo)
+        def perdida(s, y):
+            w = wt if s.shape[0] == wt.shape[0] else wv
+            return (torch.nn.functional.binary_cross_entropy_with_logits(s, y, reduction="none") * w).sum() / w.sum()
     mejor, estado, paso_mejor = np.inf, None, 0
     for paso in range(a.pasos):
         modelo.train()
@@ -306,18 +315,25 @@ def predecir_torch(modelo, X, dispositivo, lote=4096):
     return np.concatenate(out)
 
 
-def h_igual(d, objetivo):
-    """Ancho oculto del MLP cuyo numero de parametros h*(d+2)+1 queda mas cerca del objetivo."""
-    return max(1, int(round((objetivo - 1) / (d + 2))))
+def h_igual(d, objetivo, lado="cercano"):
+    """Ancho oculto del MLP cuyo numero de parametros h*(d+2)+1 queda mas cerca del objetivo.
+    lado="otro": el ancho vecino que deja el conteo del otro lado del objetivo, para acotar al
+    VQC entre dos MLP (uno con algo menos y otro con algo mas parametros)."""
+    h = max(1, int(round((objetivo - 1) / (d + 2))))
+    if lado == "otro":
+        p = h * (d + 2) + 1
+        h = h - 1 if p > objetivo else h + 1
+        h = max(1, h)
+    return h
 
 
-def elegir_svm(Ktr_fn, Kva_fn, ytr, yva, rejilla_kernel):
+def elegir_svm(Ktr_fn, Kva_fn, ytr, yva, rejilla_kernel, peso=None):
     """Elige (C, parametro del kernel) por AUC en validacion. Devuelve el mejor ajuste."""
     mejor = None
     for pk in rejilla_kernel:
         Ktr, Kva = Ktr_fn(pk), Kva_fn(pk)
         for C in (0.1, 1.0, 10.0, 100.0):
-            svm = SVC(C=C, kernel="precomputed").fit(Ktr, ytr)
+            svm = SVC(C=C, kernel="precomputed").fit(Ktr, ytr, sample_weight=peso)
             auc = roc_auc_score(yva, svm.decision_function(Kva))
             if mejor is None or auc > mejor[0]:
                 mejor = (auc, C, pk, svm)
@@ -357,6 +373,16 @@ def main():
     ap.add_argument("--backbones", default="effb1,vitb32")
     ap.add_argument("--qubits", default="4,6,8")
     ap.add_argument("--capas", type=int, default=2)
+    ap.add_argument("--peso-lesion", action="store_true",
+                    help="ponderar cada imagen por 1/(imagenes de su lesion): cada lesion pesa igual en el entrenamiento")
+    ap.add_argument("--qk-escalas", type=lambda t: tuple(float(x) for x in t.split(",")), default=None,
+                    help="rejilla del ancho de banda s del kernel cuantico (por defecto 0.05,0.1,0.2,0.4)")
+    ap.add_argument("--rbf-gammas", type=lambda t: tuple(float(x) for x in t.split(",")), default=None,
+                    help="rejilla de gamma*d del kernel RBF (por defecto 0.03,0.1,0.3,1)")
+    ap.add_argument("--mlp-angulo", action="store_true",
+                    help="el MLP recibe theta = escala*pi*tanh(z), la misma entrada acotada que el VQC")
+    ap.add_argument("--mlp-lado", choices=["cercano", "otro"], default="cercano",
+                    help="otro: MLP con el ancho vecino, del otro lado del conteo de parametros del VQC")
     ap.add_argument("--k", default="25,50,100,200,0", help="lesiones por clase; 0 = todas")
     ap.add_argument("--semillas", default="0,1,2,3,4")
     ap.add_argument("--cabezas", default="logreg_completa,logreg,mlp,vqc,svm_rbf,svm_cuantico")
@@ -451,6 +477,15 @@ def main():
                 angulo = lambda M: a.escala_angulo * np.pi * np.tanh(M)
                 gen = lambda: torch.Generator().manual_seed(1000 * semilla + d)
                 n_vqc = 3 * d * a.capas + d + 1
+                if a.peso_lesion:
+                    # Cada lesion pesa lo mismo: peso de una imagen = 1 / imagenes de su lesion (media 1)
+                    def pesos(idx):
+                        les = man.loc[idx, "lesion_id"]
+                        w = 1.0 / les.map(les.value_counts()).to_numpy(dtype=float)
+                        return w * len(w) / w.sum()
+                    w_tr, w_va = pesos(idx_tr), pesos(idx_va)
+                else:
+                    w_tr = w_va = None
 
                 for cabeza in [c for c in ("logreg", "mlp", "vqc") if c in cabezas]:
                     if f"{bb}|{cabeza}|d{d}|k{k}|s{semilla}" in hechas:
@@ -460,10 +495,11 @@ def main():
                     if cabeza == "logreg":
                         m, A = Lineal(d), (lambda M: M)
                     elif cabeza == "mlp":
-                        m, A = MLP(d, h_igual(d, n_vqc)), (lambda M: M)
+                        # --mlp-angulo: el MLP recibe la misma transformacion acotada que el circuito
+                        m, A = MLP(d, h_igual(d, n_vqc, a.mlp_lado)), (angulo if a.mlp_angulo else (lambda M: M))
                     else:
                         m, A = CircuitoVariacional(d, a.capas, gen(), a.shots, a.resubir), angulo
-                    m, pasos = entrenar_torch(m, A(Ztr), ytr, A(Zva), yva, a, disp)
+                    m, pasos = entrenar_torch(m, A(Ztr), ytr, A(Zva), yva, a, disp, w_tr, w_va)
                     hiper = ";".join(t for t in ([f"shots={a.shots}"] if a.shots else []) +
                                      (["reupload"] if a.resubir else []) +
                                      ([f"angle={a.escala_angulo}pi"] if a.escala_angulo != 0.5 else [])) if cabeza == "vqc" else ""
@@ -476,13 +512,13 @@ def main():
                     t0 = time.time()
                     if cabeza == "svm_rbf":
                         kern = lambda A_, B_, g: np.exp(-g * ((A_[:, None, :] - B_[None, :, :]) ** 2).sum(-1))
-                        rejilla = [g / d for g in (0.03, 0.1, 0.3, 1.0)]
+                        rejilla = [g / d for g in (a.rbf_gammas or (0.03, 0.1, 0.3, 1.0))]
                         f = lambda A_, B_, g: kern(A_, B_, g)
                     else:
-                        rejilla = (0.05, 0.1, 0.2, 0.4)
+                        rejilla = a.qk_escalas or (0.05, 0.1, 0.2, 0.4)
                         rng_k = np.random.default_rng(1000 * semilla + d)
                         f = lambda A_, B_, e: kernel_cuantico(A_, B_, e, a.shots, rng_k, simetrico=A_ is B_)
-                    auc_va, C, pk, svm = elegir_svm(lambda p: f(Ztr, Ztr, p), lambda p: f(Zva, Ztr, p), ytr, yva, rejilla)
+                    auc_va, C, pk, svm = elegir_svm(lambda p: f(Ztr, Ztr, p), lambda p: f(Zva, Ztr, p), ytr, yva, rejilla, w_tr)
                     s_ev = np.concatenate([svm.decision_function(f(Zev[i:i + 2000], Ztr, pk)) for i in range(0, len(Zev), 2000)])
                     guardar(cabeza, d, int(len(svm.support_)) + 1, svm.decision_function(f(Ztr, Ztr, pk)), s_ev,
                             {"hiper": f"C={C}, param={pk:.4g}" + (f", shots={a.shots}" if a.shots and cabeza == "svm_cuantico" else ""),

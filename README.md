@@ -3,8 +3,10 @@
 Code, data partition and run-level results for the paper
 
 > Sánchez-Medel N, Altamirano-Robles L, Díaz-Hernández R, Ramírez-Gutiérrez KA, Zapotecas-Martínez S, Velázquez-Arreola JJ.
-> *Do Quantum Classification Heads Help Dermoscopic Skin-Lesion Diagnosis? A Parameter-Matched, Lesion-Level and Externally Validated Benchmark.*
+> *Do Quantum Classification Heads Help Dermoscopic Skin-Lesion Diagnosis? A Parameter-Matched, Lesion-Level Benchmark with Held-Out and Cross-Dataset Evaluation.*
 > Submitted to *Quantum Machine Intelligence* (2026).
+
+**Version history.** v1.0: code, partition and results of the main, robustness and encoding analyses. v1.1: sensitivity analyses requested in internal review (new script 05, training options `--mlp-lado`, `--mlp-angulo`, `--peso-lesion`, `--qk-escalas`, `--rbf-gammas`, and their results). The Zenodo record of v1.1 also archives the per-image predictions of the main design.
 
 The study compares quantum classification heads with classical heads of equal capacity on identical, frozen image features:
 
@@ -24,12 +26,15 @@ scripts/
   02_entrenar_cabezas.py          training and evaluation of all heads (quantum circuits simulated in PyTorch)
   03_analizar.py                  summary tables, paired lesion-level bootstrap with Holm correction, figures
   04_tablas_latex.py              LaTeX tables and numeric macros used in the manuscript
+  05_analisis_revision.py         sensitivity analyses on stored predictions (lesion-level AUC, hierarchical
+                                  bootstrap, without akiec, encoding angles, sampled-kernel spectrum, data checks)
 data/
   split_ledger.csv                lesion-level partition of the 2,000-image HAM10000 subset
 results/
   main/                           800 runs of the main design (+ paired bootstrap comparisons)
   encoding_pi/                    VQC with the angle encoding pi*tanh(z) (encoding ablation)
-  robustness/                     d = 6, 8: learning rates, depth (L = 4, 6, 8), data re-uploading, 1,024 shots
+  robustness/                     d = 6, 8: learning rates, depth (L = 4, 6, 8), data re-uploading, 1,024 shots;
+                                  all d: MLP controls, lesion-weighted training, extended kernel grids (v1.1)
 ```
 
 `data/split_ledger.csv` has SHA-256 `8ecf5ac82a7b34520f9f3c1a95d9948108363bbc44d02ae8a18975141df83b37`. Each lesion (`lesion_id`) belongs to exactly one partition (`train`, `val` or `test`).
@@ -84,6 +89,13 @@ python scripts/02_entrenar_cabezas.py --features features --salida runs/layers8 
 python scripts/02_entrenar_cabezas.py --features features --salida runs/reupload --qubits 6,8 --cabezas mlp,vqc --resubir
 python scripts/02_entrenar_cabezas.py --features features --salida runs/shots    --qubits 6,8 --cabezas mlp,vqc,svm_rbf,svm_cuantico --shots 1024
 python scripts/02_entrenar_cabezas.py --features features --salida runs/encoding_pi --cabezas vqc --escala-angulo 1.0
+# Sensitivity analyses added in v1.1 (all d)
+python scripts/02_entrenar_cabezas.py --features features --salida runs/mlp_other_side --cabezas mlp --mlp-lado otro
+python scripts/02_entrenar_cabezas.py --features features --salida runs/mlp_bounded_input --cabezas mlp --mlp-angulo
+python scripts/02_entrenar_cabezas.py --features features --salida runs/lesion_weighted --cabezas logreg,mlp,vqc,svm_rbf,svm_cuantico --peso-lesion
+python scripts/02_entrenar_cabezas.py --features features --salida runs/extended_grid --cabezas svm_rbf,svm_cuantico \
+  --qk-escalas 0.00625,0.0125,0.025,0.05,0.1,0.2,0.4 --rbf-gammas 0.003,0.01,0.03,0.1,0.3,1,3
+python scripts/05_analisis_revision.py --features features --principal runs/main --shots runs/shots --salida analysis/revision
 ```
 
 With more layers the MLP is enlarged automatically to keep the number of parameters matched.
